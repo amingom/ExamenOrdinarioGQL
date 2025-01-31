@@ -1,15 +1,89 @@
 import { Collection, ObjectId } from "mongodb";
-import { RestauranteModel } from "./types.ts";
-import { GraphQLError } from "graphql";
+import { API_CITY, RestauranteModel } from "./types.ts";
+import { GraphQLError, responsePathAsArray } from "graphql";
+import { parentPort } from "node:worker_threads";
+
 
 type Context = {
     restauranteCollections: Collection<RestauranteModel>
+}
+
+const temperatura = async(
+    latitude: number,
+    longitude: number
+): Promise<number> => {
+    const API_KEY = Deno.env.get('API_KEY');
+    const url = `https://api.api-ninjas.com/v1/weather?lat= ${latitude}&lon= ${longitude}`;
+    const data = await fetch(url, {headers:{'X-Api-Key': API_KEY}});
+
+    if(data.status !== 200){
+        throw new GraphQLError("No se ha podido hacer fetch");
+    }
+
+    const respuesta = await data.json();
+
+    return respuesta.temp;
+}
+
+const buscarCiudad = async(
+    ciudad: string
+): Promise<API_CITY> => {
+    const API_KEY = Deno.env.get('API_KEY');
+    const url = `https://api.api-ninjas.com/v1/city?name= ${ciudad}`;
+    const data = await fetch(url, {headers:{'X-Api-Key': API_KEY}});
+
+    if(data.status !== 200){
+        throw new GraphQLError("No se ha podido hacer fetch de la API_CITY");
+    }
+
+    const respuesta = await data.json();
+
+    if(respuesta[0] === undefined){
+        throw new GraphQLError("La respuesta es indefinida");
+    }
+
+    const datosCiudad:API_CITY = {
+        latitude: respuesta[0].latitude,
+        longitude: respuesta[0].longitude,
+    }
+
+    return datosCiudad;
+}
+
+const hora = async(
+    latitude: number,
+    longitude: number
+): Promise<string> => {
+    const API_KEY = Deno.env.get('API_KEY');
+    const url = `https://api.api-ninjas.com/v1/worldtime?lat= ${latitude}&lon= ${longitude}`;
+    const data = await fetch(url, {headers:{'X-Api-Key': API_KEY}});
+
+    if(data.status !== 200){
+        throw new GraphQLError("No se ha podido hacer fetch de la hora");
+    }
+
+    const respuesta = await data.json();
+
+    return `${respuesta.hora}:${respuesta.minute}`;
 }
 
 export const resolvers = {
     Restaurante: {
         id: (parent: RestauranteModel) => {
             return parent._id.toString();
+        },
+        
+        temperatura: async(parent: RestauranteModel) => {
+            const ciudad = await buscarCiudad(parent.ciudad);
+            const temp = temperatura(ciudad.latitude, ciudad.longitude);
+            
+            return temp;
+        },
+        hora: async(parent: RestauranteModel) => {
+            const ciudad = await buscarCiudad(parent.ciudad);
+            const horaActual = await hora(ciudad.latitude, ciudad.longitude);
+
+            return horaActual;
         }
     },
     Query: {
@@ -17,29 +91,23 @@ export const resolvers = {
             _: unknown,
             args: {ciudad: string},
             ctx: Context
-        ):Promise<RestauranteModel[]|null> => {
+        ):Promise<RestauranteModel[]> => {
             const restaurantes = await ctx.restauranteCollections.find({ciudad: args.ciudad}).toArray();
-            if(restaurantes){
+            if(restaurantes.length > 0){
                 return restaurantes;
             } else {
                 throw new GraphQLError("No se han encontrado restaurantes en esa ciudad");
             }
         },
-        /*getRestaurant: async (
+        getRestaurant: async (
             _: unknown,
             args: {id: string},
             ctx: Context,
-        ):Promise<Restaurante|null> => {
+        ):Promise<RestauranteModel|null> => {
             const restaurante = await ctx.restauranteCollections.findOne({_id: new ObjectId(args.id)});
 
-            if(restaurante){
-                
-            } else {
-                throw new GraphQLError("No se ha encontrado el restaurante");
-            }
-
-
-        }*/
+            return restaurante;
+        }
     },
     Mutation: {
         addRestaurant: async(
@@ -92,7 +160,7 @@ export const resolvers = {
             args: {id: string},
             ctx: Context,
         ):Promise<boolean> => {
-            const {deletedCount} = await ctx.restauranteCollections.deleteOne({_id: new ObjectId(args.id)});
+            const {deletedCount} = await ctx.restauranteCollections.deleteOne({_id: new Object(args.id)});
 
             if(deletedCount){
                 return true;

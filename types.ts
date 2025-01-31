@@ -16,5 +16,16 @@ export type RestauranteModel = OptionalId<{
 }>
 
 export type API_PHONE = {
-    is_valid: boolean
+    is_valid: boolean,
+    country: string
+}
+
+export type API_CITY = {
+    latitude: number,
+    longitude: number,
+}
+
+export type API_TIME = {
+    hour: string,
+    minute: string
 }

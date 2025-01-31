@@ -11,7 +11,7 @@ export const schema =`#graphql
     }
 
     type Query{
-        getRestaurants(nombre: String!): [Restaurante]
+        getRestaurants(ciudad: String!): [Restaurante!]!
         getRestaurant(id: ID!): Restaurante
     }
 
