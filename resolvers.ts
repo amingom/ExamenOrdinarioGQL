@@ -1,7 +1,7 @@
 import { Collection, ObjectId } from "mongodb";
 import { API_CITY, RestauranteModel } from "./types.ts";
-import { GraphQLError, responsePathAsArray } from "graphql";
-import { parentPort } from "node:worker_threads";
+import { GraphQLError } from "graphql";
+
 
 
 type Context = {
